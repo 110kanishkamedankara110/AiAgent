@@ -53,7 +53,6 @@ ShortLink_Agent = Agent(
     retries=2,
 )
 
-
 @ShortLink_Agent.tool
 async def short_url(ctx: RunContext[Deps], url: str) -> str:
     """Shortens the given URL."""

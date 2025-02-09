@@ -3,16 +3,10 @@ from dataclasses import dataclass
 import re
 import httpx
 from dotenv import load_dotenv
-from filelock import asyncio
-from flask import jsonify
-from pydantic_ai import Agent, RunContext
-from pydantic_ai.models.groq import GroqModel
-from pydantic_ai.models.openai import OpenAIModel
-import subprocess
-
+from phi.model.groq import Groq
 import json
+from phi.agent import Agent
 
-import asyncio
 
 load_dotenv()
 
@@ -27,16 +21,9 @@ playlist = load_playlist()
 
 key = os.getenv("LLM_MODEL_KEY")
 
-model = GroqModel(
-    model_name="deepseek-r1-distill-llama-70b",
-    api_key=key
-)
+llm = Groq(id="deepseek-r1-distill-llama-70b", api_key=key)
 
-# model = OpenAIModel(
-#     model_name="llama3.2",
-#     base_url='http://localhost:11434/v1',
-#     api_key=key
-# )
+
 @dataclass
 class MusicDeps:
     client: httpx.AsyncClient
@@ -61,7 +48,7 @@ If a request is outside these tasks, ignore it.
 
 Tool Usage:
     Always use the provided tools to fetch data and execute requests before responding to the user.
-    
+
 Your job is to only handle music-related tasks,
 """
 
@@ -77,66 +64,50 @@ you are an expert searcher, when you are provided with a partial song name searc
     never ask any questions just return the song location if you find the song if not just return null
 """
 
-music_player_agent = Agent(
-    model,
-    system_prompt=music_player_system_prompt,
-    deps_type=MusicDeps,
-    retries=2,
-)
 
-music_location_agent = Agent(
-    model,
-    system_prompt=location_fetch_system_prompt,
-    deps_type=MusicDeps,
-    retries=2,
-)
-
-
-@music_player_agent.tool()
-async def get_song_location(ctx: RunContext, name: str):
+def get_song_location(name: str) -> str:
     """Get the playlist from the pc.
 
     Args:
-         ctx: The context.
-
+         name: name of the song
     Returns:
         str: user requested song name.
-        name: name of the song
+
     """
-    import json
+    result = Agent(
+        model=llm,
+        tools=[get_playlist],
+        description=location_fetch_system_prompt,
+        markdown=True,
+        instructions=[
+            "always use playlist to fetch locations",
+            "dont parse imaginary locations",
+            "if no location found return null"
+        ],
+        show_tool_calls=True,
 
-    query = f"""
-    fetch the song
-    playlist:
-    {json.dumps(playlist, indent=4)}  
-    Song name:
-    {name}
-    """
+    ).run(f"""
+        fetch the song
+        Song name : {name}
+        """)
 
-    result = await music_location_agent.run(
-        query,
-        deps=ctx.deps
-    )
-    return result
+    print("location...", str(result.content))
+    return str(result)
 
-@music_player_agent.tool
-async def get_playlist(ctx: RunContext[MusicDeps]) -> str:
+
+def get_playlist() -> str:
     """Get the playlist from the pc.
 
-    Args:
-         ctx: The context.
     Returns:
         str: The playlist as a formatted string.
     """
     return f"""{playlist}"""
 
 
-@music_player_agent.tool
-async def play_song(ctx: RunContext[MusicDeps], location: str):
+def play_song(location: str) -> str:
     """Play The Song.
 
        Args:
-            ctx: The context.
             location: location of the song
        Returns:
             str: song status
@@ -144,3 +115,15 @@ async def play_song(ctx: RunContext[MusicDeps], location: str):
     print("playing song...", location)
     os.startfile(location)
     return "song is playing"
+
+
+PhiDataAgent = Agent(
+    tools=[get_song_location, play_song],
+    model=llm,
+    description=music_player_system_prompt,
+    markdown=True,
+    instructions=[
+        "after fetching the song close the loop and stop process",
+    ],
+    show_tool_calls=True,
+)

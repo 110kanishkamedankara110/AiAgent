@@ -7,6 +7,7 @@ import asyncio
 from dotenv import load_dotenv
 from pydantic_ai.messages import UserPromptPart, ModelRequest, ModelMessage, ModelResponse, TextPart
 
+from MusicPlayer import music_player_agent
 from ShortLinkAgent import ShortLink_Agent, Deps
 
 
@@ -69,7 +70,7 @@ class UI:
     async def chat(self,message:str):
             user_input = message
 
-            result=await ShortLink_Agent.run(
+            result=await music_player_agent.run(
                 user_input,
                 deps=self.deps,
                 message_history=self.messages,
