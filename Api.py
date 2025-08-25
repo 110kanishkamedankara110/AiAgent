@@ -5,6 +5,7 @@ from flask_cors import CORS
 from pydantic_ai.messages import UserPromptPart, ModelRequest, ModelMessage, ModelResponse, TextPart
 import httpx
 
+from MusicPlayer import music_player_agent
 from ShortLinkAgent import ShortLink_Agent, Deps
 
 app = Flask(__name__)
@@ -13,7 +14,7 @@ deps = Deps(
     client=httpx.AsyncClient(),
 )
 
-@app.route('/send', methods=['POST'])
+@app.route('/ask', methods=['POST'])
 def receive_data():
     data = request.get_json()  # Get JSON data from request body
     if not data:

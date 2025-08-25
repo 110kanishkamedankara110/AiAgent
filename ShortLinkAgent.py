@@ -4,6 +4,7 @@ import re
 import httpx
 from dotenv import load_dotenv
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.groq import GroqModel
 from pydantic_ai.models.openai import OpenAIModel
 
 load_dotenv()
@@ -16,34 +17,45 @@ key = os.getenv("LLM_MODEL_KEY")
 #     base_url='http://localhost:11434/v1',
 #     api_key=key
 # )
-model = OpenAIModel(
-    model_name="google/gemini-2.0-flash-001",
-    base_url='https://openrouter.ai/api/v1',
+# model = OpenAIModel(
+#     model_name="google/gemini-2.0-flash-001",
+#     base_url='https://openrouter.ai/api/v1',
+#     api_key=key
+# )
+# model = OpenAIModel(
+#     model_name="MFDoom/deepseek-r1-tool-calling:latest",
+#     base_url='http://localhost:11434/v1',
+#     api_key=key
+# )
+model = GroqModel(
+    model_name="deepseek-r1-distill-llama-70b",
     api_key=key
 )
-
 @dataclass
 class Deps:
     client: httpx.AsyncClient
 
 
 system_prompt = """
-Your main task is to shorten any URLs provided to you using the tools at your disposal. Never answer questions or take actions other than shortening URLs.
+Prompt:
 
-You should never ask the user anything before you act. As soon as you receive the URL, extract it and shorten it right away.
+Your primary task is to shorten any URLs provided to you using the available tools and to answer questions related to short URLs.
 
-If the user wants to shorten a URL but hasn’t provided one, politely ask for the URL.
-
-If the user asks for details about the URL, feel free to provide them.
-
-If the user asks about anything else that’s not related to URLs, just reply with: "Sorry, I can't help you with that."
-
-When you respond, keep it clear and friendly. Format your answer like this:
-
+Guidelines:
+Always shorten URLs immediately when provided, without modifying them.
+Never edit, reformat, or alter the shortened URL in any way.
+If no URL is provided, politely ask the user for one.
+If the user asks for details about a short URL, provide relevant information accurately.
+If the user asks about anything else unrelated to URLs, respond with:
+"Sorry, I can't help you with that."
+Response Formatting:
+Always return the shortened URL exactly as given by the API.
+Format responses like this:
 shortened URL
-
-Always use the available tools to shorten the link, and never offer any other info.
-
+Interaction Style:
+Be clear, friendly, and human-like when responding.
+If the user greets you, greet them back naturally.
+Your focus is only on URL shortening and related questions—nothing else.
 """
 
 ShortLink_Agent = Agent(

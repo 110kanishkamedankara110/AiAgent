@@ -26,23 +26,33 @@ def load_playlist():
 playlist = load_playlist()
 
 key = os.getenv("LLM_MODEL_KEY")
-
+#
 model = GroqModel(
     model_name="deepseek-r1-distill-llama-70b",
     api_key=key
 )
 
 # model = OpenAIModel(
-#     model_name="llama3.2",
+#     model_name="MFDoom/deepseek-r1-tool-calling:latest",
 #     base_url='http://localhost:11434/v1',
 #     api_key=key
 # )
+
+
+# model = OpenAIModel(
+#     model_name="google/gemini-2.0-flash-001",
+#     base_url='https://openrouter.ai/api/v1',
+#     api_key=key
+# )
+
+
 @dataclass
 class MusicDeps:
     client: httpx.AsyncClient
 
 
 music_player_system_prompt = """
+Be concise, reply with one sentence.
 You are an expert music-playing agent designed to fetch playlist get song location, play them, and provide song-related information. 
 Your primary function is to process user song requests and play them.
 
@@ -66,15 +76,24 @@ Your job is to only handle music-related tasks,
 """
 
 location_fetch_system_prompt = """
-you are an expert searcher, when you are provided with a partial song name search a fairly similar song location using that song name from the playlist,
-    play list structure is
-    [{
+Be concise and reply with one sentence.  
+
+You are an expert searcher. When given a partial song name, find the most similar match from the playlist and return its exact location.  
+
+**Playlist Structure:**  
+[
+    {
         "name": "song_name",
         "location": "song_location",
         "category": "song_category"
-    },..]
-    always fetch the location if the name vaguely similar to the name provided
-    never ask any questions just return the song location if you find the song if not just return null
+    }, ...
+]
+
+**Rules:**  
+- Always return the exact **location** if a similar song is found.  
+- Do **not** modify or generate locations—return them exactly as listed.  
+- If no match is found, return **null**.  
+- Do **not** ask questions or provide explanations—just return the location or null.  
 """
 
 music_player_agent = Agent(
@@ -106,18 +125,18 @@ async def get_song_location(ctx: RunContext, name: str):
     import json
 
     query = f"""
-    fetch the song
-    playlist:
-    {json.dumps(playlist, indent=4)}  
-    Song name:
-    {name}
+    fetch the song location from the playlist using this song name (
+    "playlist":{json.dumps(playlist, indent=4)},
+    "Song name":{name}
+    )
     """
 
     result = await music_location_agent.run(
         query,
-        deps=ctx.deps
+        deps=ctx.deps,
     )
     return result
+
 
 @music_player_agent.tool
 async def get_playlist(ctx: RunContext[MusicDeps]) -> str:
@@ -144,3 +163,4 @@ async def play_song(ctx: RunContext[MusicDeps], location: str):
     print("playing song...", location)
     os.startfile(location)
     return "song is playing"
+

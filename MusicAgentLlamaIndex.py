@@ -7,7 +7,6 @@ from phi.model.groq import Groq
 import json
 from phi.agent import Agent
 
-
 load_dotenv()
 
 
@@ -21,12 +20,17 @@ playlist = load_playlist()
 
 key = os.getenv("LLM_MODEL_KEY")
 
-llm = Groq(id="deepseek-r1-distill-llama-70b", api_key=key)
+llm = Groq(id="openai/gpt-oss-120b", api_key=key)
 
 
 @dataclass
 class MusicDeps:
     client: httpx.AsyncClient
+
+
+# ---- STATE FIX ----
+current_song = None
+is_playing = False
 
 
 music_player_system_prompt = """
@@ -41,7 +45,7 @@ Your Rules & Responsibilities:
     Playing Songs:
         Once the correct song location is fetched, play it using fetched location.
         Do not ask the user for confirmation before playing,execute the request immediately.
-
+        when you receive string like "playing song... " from the a tool stop calling tools 
 
 You do not answer any questions unrelated to song retrieval, playback, or information.
 If a request is outside these tasks, ignore it.
@@ -66,28 +70,15 @@ you are an expert searcher, when you are provided with a partial song name searc
 
 
 def get_song_location(name: str) -> str:
-    """Get the playlist from the pc.
-
-    Args:
-         name: name of the song
-    Returns:
-        str: user requested song name.
-
-    """
+    """Get the playlist from the pc."""
     result = Agent(
         model=llm,
         tools=[get_playlist],
         description=location_fetch_system_prompt,
         markdown=True,
-        instructions=[
-            "always use playlist to fetch locations",
-            "dont parse imaginary locations",
-            "if no location found return null"
-        ],
         show_tool_calls=True,
-
     ).run(f"""
-        fetch the song
+        fetch the location from the playlist 
         Song name : {name}
         """)
 
@@ -95,35 +86,61 @@ def get_song_location(name: str) -> str:
     return str(result)
 
 
-def get_playlist() -> str:
-    """Get the playlist from the pc.
-
-    Returns:
-        str: The playlist as a formatted string.
-    """
-    return f"""{playlist}"""
+def get_playlist(**kwargs) -> str:
+    """Get the playlist from the pc."""
+    try:
+        return json.dumps(playlist, ensure_ascii=False)
+    except Exception:
+        return "[]"
 
 
 def play_song(location: str) -> str:
-    """Play The Song.
+    """Play The Song without repeating unnecessarily."""
+    global is_playing, current_song
 
-       Args:
-            location: location of the song
-       Returns:
-            str: song status
-    """
-    print("playing song...", location)
-    os.startfile(location)
-    return "song is playing"
+    if is_playing and current_song == location:
+        return f"Song is already playing: {location}"
+
+    try:
+        print("playing song...", location)
+        os.startfile(location)  # non-blocking
+        is_playing = True
+        current_song = location
+        return f"Now playing: {location}"
+    except FileNotFoundError:
+        ""
+    except OSError:
+        ""
+
+
+
+# Optionally: reset state when user requests "stop" or "next"
+def stop_song():
+    global is_playing, current_song
+    is_playing = False
+    current_song = None
+    return "Song stopped"
 
 
 PhiDataAgent = Agent(
-    tools=[get_song_location, play_song],
+    tools=[get_song_location, play_song, stop_song],
     model=llm,
     description=music_player_system_prompt,
     markdown=True,
-    instructions=[
-        "after fetching the song close the loop and stop process",
-    ],
     show_tool_calls=True,
 )
+
+try:
+    while True:
+        user_input = input("🎵 Enter a command (or type 'exit' to quit): ")
+
+        if user_input.lower() in ["exit", "quit", "stop"]:
+            print("👋 Exiting music player...")
+            break
+
+        response = PhiDataAgent.run(user_input)
+        print(response.content)
+
+except Exception as e:
+    ""
+
