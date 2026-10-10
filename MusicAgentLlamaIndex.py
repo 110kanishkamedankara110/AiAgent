@@ -10,12 +10,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from mutagen import File as MutagenFile
+from pydantic_ai.providers.openai import OpenAIProvider
 from rapidfuzz import fuzz, process
 
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
 
 
 # ============================================================
@@ -373,11 +373,28 @@ def play_selected_song(
 # ============================================================
 
 def build_agent():
+    # model = OpenAIChatModel(
+    #     MODEL_NAME,
+    #     provider=OpenAIProvider(
+    #         base_url="https://api.groq.com/openai/v1",
+    #         api_key=API_KEY
+    #     )
+    # )
+
+    # model = OpenAIChatModel(
+    #     "dots-studio/dots-3-note-preview:free",
+    #         provider=OpenAIProvider(
+    #             base_url="https://openrouter.ai/api/v1",
+    #             api_key=API_KEY
+    #         )
+    #     ,
+    # )
+
     model = OpenAIChatModel(
-        MODEL_NAME,
+        model_name="gemma4:e4b",  # The exact name you downloaded via 'ollama run'
         provider=OpenAIProvider(
-            base_url="https://api.groq.com/openai/v1",
-            api_key=API_KEY
+            base_url="http://localhost:11434/v1",  # Ollama's local address
+            api_key="ollama"  # A placeholder key (Ollama doesn't require one)
         )
     )
 
